@@ -20,28 +20,50 @@ uint8_t UnscramblePalette(uint8_t index) {
 	}
 }
 
+size_t ReadSave(std::string filename, std::vector<uint8_t> &buffer) {
 
-void ReadSave(std::string filename, std::vector<uint8_t> &buffer) {
+	size_t offset = 0;
 
-	std::ifstream infile(filename, std::ios::binary);
+	std::ifstream infile(filename, std::ios::binary|std::ios::ate);
 	if (!infile) {
 		std::cerr << "Error - can't open file " << filename << "\n";
-		return;
+		exit(EXIT_FAILURE);
 	}
 
-	// Reads in the data while skipping the checksum bytes
-	for (int i = 0; i < kSaveSize && infile.read((char*)&buffer[i], 1); i++)
-		if ( (((size_t)infile.tellg() + 1) % 0x400) == 0 )
-			infile.seekg(1, std::ios_base::cur);
+	size_t save_size = infile.tellg();
+	buffer.resize(save_size);
+	
+	infile.seekg(0, infile.beg);
+	infile.read((char*)buffer.data(), save_size);
+
+	if (save_size > kSaveSize) {
+		for (size_t i = 0, j = 0; i < save_size; i++) {
+			if (j == sizeof(kEmblemHeader)) {
+				offset = i - j;
+				break;
+			} else if (buffer[i] == kEmblemHeader[j]) {
+				j++;
+			} else {
+				j = 0;
+			}
+		}
+	} else if (save_size < kSaveSize) {
+		std::cout << "File " << filename << " too small to be an emblem save\n";
+		infile.close();
+		exit(EXIT_FAILURE);
+	}
 
 	infile.close();
+	return offset;
 }
 
+size_t bufferIndex(size_t i, size_t emblem_offset) {
+	return emblem_offset + kImageOffset + i + (kImageOffset+i)/0x3FF;
+}
 
 void InjectImage(std::string savename, std::string imagename) {
     std::vector<uint8_t> buffer;
-    buffer.reserve(kSaveSize);
-    ReadSave(savename, buffer);
+    size_t emblem_offset = ReadSave(savename, buffer);
 
 	// Load png
 	std::vector<unsigned char> image;
@@ -65,7 +87,7 @@ void InjectImage(std::string savename, std::string imagename) {
 			c = PackColor(image[i*4], image[i*4+1], image[i*4+2], image[i*4+3]);
 		}
 
-		// Adding color to hash map
+		// Adding color to hash map to count non-duplicate colors and build palette
 		if (palette_map.find(c) == palette_map.end()) {
 			if (palette_map.size() > 256) {
 				std::cout << "Your PNG has more than 255 colors + alpha color" << std::endl;
@@ -73,58 +95,63 @@ void InjectImage(std::string savename, std::string imagename) {
 			}
 			palette_map[c] = palette_map.size();
 
-			int color_index = kImageOffset + kNumPixels + (palette_map[c] * 4);
-			for (int channel = 0; channel < 4; channel++) 
-				buffer[color_index + channel] = image[i*4+channel];
+			for (int channel = 0; channel < 4; channel++) {
+				size_t color_index = bufferIndex(
+					kNumPixels + (palette_map[c] * 4) + channel,
+					emblem_offset
+				);
+				buffer[color_index] = image[i*4+channel];
+			}
 		}
 
-		buffer[kImageOffset + i] = UnscramblePalette(palette_map[c]);
+		buffer[bufferIndex(i, emblem_offset)] = UnscramblePalette(palette_map[c]);
 	}
 
-	uint8_t sum = 0;
-	std::ofstream outfile(savename + "-modified", std::ios::binary|std::ios::trunc);
-	const int kStrippedSize = kImageOffset + kNumPixels + kPaletteSize;
+	// Apply the checksums to the emblem data
+	
+	// The first checksum needs 0x98 included in the sum (or 0x68 added after)
+	uint8_t sum = 0x98;
 
-	// Write the savefile and apply the checksums, i tracks the data index
-	// j tracks the output index
-	for (int i = 0, j = 0; i < kStrippedSize; i++, j++) {
+	// The last checksum isn't on the 0x400 interval so we need to find the 2nd 
+	// to last checksum location
+	size_t prev_check = 0;
 
-		if (j % 0x400 == 0x3FF) {
+	for (size_t i = 0; i < kSaveSize; i++) {
+		if ((i + 1) % 0x400 == 0) {
 			sum = ~(sum + 0xFF) + 1;
-
-			// The first checksum needs 104 added to it for whatever reason
-			if (j == 0x3FF) sum += 0x68; 
-
-			outfile.write((char*)&sum, 1);
+			prev_check = i + emblem_offset;
+			buffer[prev_check] = sum;
 			sum = 0;
-			j++;
+		} else {
+			sum += buffer[i + emblem_offset];
 		}
-
-		outfile.write((char*)&buffer[i], 1);
-		sum += buffer[i];
 	}
 
-	// The final checksum needs 202 added to it
-	sum = ~(sum + 0xFF) + 1 + 0xCA;
-	outfile.write((char*)&sum, 1);
-	outfile.write((char*)&buffer[kStrippedSize+1], 10);
+	// Subtract the extra bytes from the orignal save that got caught in our sum
+	sum -= (buffer[prev_check + 0x36] + 0x01);
+
+	// Final checksum has it's own magic number
+	buffer[prev_check + 0x36] = ~(sum + 0xFF) + 1 + 0xCA; 
+
+	std::ofstream outfile(savename + "-modified", std::ios::binary|std::ios::trunc);
+	outfile.write((char*)buffer.data(), buffer.size());
 	outfile.close();
 }
 
 // Extracts an image from the buffer and writes it to file
 void WriteImage(std::string savename, std::string filename) {
     std::vector<uint8_t> buffer;
-    buffer.reserve(kSaveSize);
-    ReadSave(savename, buffer);
+    size_t emblem_offset = ReadSave(savename, buffer);
 
 	uint8_t pixels[kNumPixels]; 
 	uint8_t colors[kPaletteSize]; 
 
-	for (int i = 0; i < kNumPixels; i++)
-		pixels[i] = buffer[kImageOffset + i];
+	for (int i = 0; i < kNumPixels; i++) {
+		pixels[i] = buffer[bufferIndex(i, emblem_offset)];
+	}
 
 	for (int i = 0; i < kPaletteSize; i++) {
-		uint8_t c = buffer[kImageOffset + kNumPixels + i];
+		uint8_t c = buffer[bufferIndex(kNumPixels + i, emblem_offset)];
 		if (i % 4 == 3 && c != 0)
 			c = 0xFF;
 

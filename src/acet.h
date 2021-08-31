@@ -16,13 +16,19 @@ const int kImageHeight = 128;
 const int kNumPixels = 0x4000; // 128*128 pixels
 const int kPaletteSize = 0x400; // 256 colors * 4 channels
 
+const uint8_t kEmblemHeader[12] = {
+    0x20, 0x44, 0x00, 0x00, 0x20, 0x44, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00
+};
+
+size_t bufferIndex(size_t i, size_t emblem_offset);
+
 uint32_t PackColor(uint8_t r, uint8_t g, uint8_t b, uint8_t a);
 
 uint8_t UnscramblePalette(uint8_t index);
 
 bool isPNG(std::string filename);
 
-void ReadSave(std::string filename, std::vector<uint8_t> &buffer);
+size_t ReadSave(std::string filename, std::vector<uint8_t> &buffer);
 
 void InjectImage(std::string savename, std::string imagename);
 
