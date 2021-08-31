@@ -11,7 +11,7 @@ that requires an older version X-Port/Sharkport save format that none of the
 ps2 save converters I could find exported to.
 
 [Armored Core 3 Emblem Extractor/Injector](https://www.vg-resource.com/thread-23051.html)
-which for garbled the extracted image and would throw errors when I tried injecting.
+garbled the extracted image and would throw errors when I tried injecting.
 
 So I ended up slapping this tool together referencing the AC3 tool's source and
 spending a day or so staring at hex data to figure out the format. I also leveraged
@@ -31,7 +31,8 @@ Haven't gotten around to the others yet but they will probably work too.
 
 This tool should work with any save format that doesn't mess with the raw emblem
 data. So far I've tested a few like .psu and .sps/.xpo and they seem to work with
-common save tools and an emulator but I haven't tried on the actual hardware.
+[mymc](http://www.csclub.uwaterloo.ca:11068/mymc/) and pcsx2 but I haven't tried
+on the actual hardware.
 
 My personal favorite though is to just use the "convert" option in pcsx2's memcard
 menu to convert a memory card to a folder structure and access the emblem save file
@@ -44,13 +45,15 @@ transparent.
 
 Otherwise, using the tool is pretty simple. 
 
-1. Just clone/download this repo and compile it. Or for windows grab the binary I
-included on the releases page. 
+1. Just clone/download this repo and compile it. 
 
         mkdir build
         cmake -S . -B build/
+        cmake --build build
+        
+    **Or for windows just grab the binary I included on the releases page.** 
 
-2. Copy the emblem save and png to the same directory as the acet tool.
+2. Copy the emblem save and png to the same directory as the acet application
 
 3. To extract an image to ``output.png`` run the command and pass in the save file as 
     the only argument.
