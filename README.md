@@ -7,8 +7,8 @@ my PC as an emblem. After some searching, I found a few tools that I unfortunate
 couldn't get to work.
 
 [Armoured Core 2 Emblem Tool](https://www.ps2savetools.com/download/armoured-core-2-emblem-tool/)
-that requires an older version X-Port/Sharkport save format that none of the 
-ps2 save converters I could find exported to.
+requires an older version X-Port/Sharkport save format that none of the ps2 save
+converters I could find exported to.
 
 [Armored Core 3 Emblem Extractor/Injector](https://www.vg-resource.com/thread-23051.html)
 garbled the extracted image and would throw errors when I tried injecting.
@@ -27,15 +27,15 @@ So far I've tested and confirmed it's working with the following games on PS2:
 
 Haven't gotten around to the others yet but they will probably work too.
 
-### Usage
+## Usage
 
 This tool should work with any save format that doesn't mess with the raw emblem
 data. So far I've tested a few like .psu and .sps/.xpo and they seem to work with
 [mymc](http://www.csclub.uwaterloo.ca:11068/mymc/) and pcsx2 but I haven't tried
 on the actual hardware.
 
-My personal favorite though is to just use the "convert" option in pcsx2's memcard
-menu to convert a memory card to a folder structure and access the emblem save file
+The simplest is to just use the *"convert"* option in pcsx2's memcard menu to 
+*convert* a memory card to a folder structure and access the emblem save file
 directly. The folder and save file will both be named something like *BASLUS-20435E00*
 where *BASLUS-20435* is the game code (AC3) and *E00* means the first emblem save.
 
@@ -45,7 +45,7 @@ transparent.
 
 Otherwise, using the tool is pretty simple. 
 
-1. Just clone/download this repo and compile it. 
+1. Just clone/download this repo and compile it. Uses cmake
 
         mkdir build
         cmake -S . -B build/
@@ -55,18 +55,19 @@ Otherwise, using the tool is pretty simple.
 
 2. Copy the emblem save and png to the same directory as the acet application
 
-3. To extract an image to ``output.png`` run the command and pass in the save file as 
+3. To extract an image to ``SAVEFILE.png`` run the command and pass in the save file as 
     the only argument.
 
         ./acet SAVEFILE
 
-    To inject an image pass the save and the image as two arguments (order doesn't
-    matter). This will write out the new file into ``SAVEFILE-modified``.
+    To inject an image pass the save and the image as two arguments - **order doesn't matter**.
+    This will make a backup of the original called ``SAVEFILE.backup`` and write 
+    out the modified file into ``SAVEFILE``.
 
         ./acet SAVEFILE image.png
 
     **Alternatively you can just drag and drop files onto the tool**: a single file 
     to extract or both files to inject.
 
-4. Take the ``SAVEFILE-modified`` and transfer it back into your memory card and
+4. Take the modified ``SAVEFILE`` and transfer it back into your memory card and
     load up the emblem save in-game.
