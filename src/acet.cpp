@@ -53,7 +53,8 @@ size_t FindOffset(const std::vector<uint8_t>& save) {
 
 		if (!found) ExitMessage("Couldn't find emblem data in save file.");
 
-	} else if (save.size() < kSaveSize) {
+
+	} else if (save.size() < kSaveSize && save.size() != kLRSaveSize) {
 		ExitMessage("Save file is too small to be an emblem save");
 	}
 
@@ -62,7 +63,9 @@ size_t FindOffset(const std::vector<uint8_t>& save) {
 
 // Injects image into the emblem save. Modified save is passed back thru param
 void InjectImage(std::vector<uint8_t>& save, const std::vector<uint8_t>& image) {
-    size_t emblem_offset = FindOffset(save);
+	bool isLR = save.size() == kLRSaveSize;
+	size_t emblem_offset = FindOffset(save);
+	size_t image_offset = (isLR) ? kLRImageOffset : kImageOffset;
 	std::unordered_map<uint32_t, int> palette_map = { {PackColor(0,0,0,0), 0} };
 
 	for (int i = 0; i < image.size() / 4; i++) {
@@ -80,7 +83,7 @@ void InjectImage(std::vector<uint8_t>& save, const std::vector<uint8_t>& image) 
 
 			for (int channel = 0; channel < 4; channel++) {
 				size_t color_index = OffsetIndex(
-					kImageOffset + kNumPixels + (palette_map[c] * 4) + channel,
+					image_offset + kNumPixels + (palette_map[c] * 4) + channel,
 					emblem_offset
 				);
 
@@ -89,21 +92,24 @@ void InjectImage(std::vector<uint8_t>& save, const std::vector<uint8_t>& image) 
 			}
 		}
 
-		save[OffsetIndex(i + kImageOffset, emblem_offset)] = UnscramblePalette(palette_map[c]);
+		// LR doesn't have scrambled colors
+		int p = (isLR) ? palette_map[c] : UnscramblePalette(palette_map[c]);
+		save[OffsetIndex(i + image_offset, emblem_offset)] = p;
 	}
 
 	// Apply the checksums to the emblem data
-	
-	// The first checksum needs 0x98 included in the sum (or 0x68 added after)
-	uint8_t sum = 0x98;
+	// Basically ~(sum + len) + 1 but the first one has a magic number added to sum
+	uint8_t sum = (isLR) ? 0xB8 : 0x98;
 
 	// The last checksum isn't on the 0x400 interval so we need to find the 2nd 
 	// to last checksum location
 	size_t prev_check = 0;
 
-	for (size_t i = 0; i < kSaveSize; i++) {
+	size_t save_size = (isLR) ? kLRSaveSize : kSaveSize;
+
+	for (size_t i = 0; i < save_size; i++) {
 		if ((i + 1) % 0x400 == 0) {
-			sum = ~(sum + 0xFF) + 1;
+			sum = ~(sum + 0x3FF) + 1;
 			prev_check = i + emblem_offset;
 			save[prev_check] = sum;
 			sum = 0;
@@ -112,28 +118,33 @@ void InjectImage(std::vector<uint8_t>& save, const std::vector<uint8_t>& image) 
 		}
 	}
 
-	// Subtract the two extra bytes from the orignal save that got caught in our sum
-	sum -= (save[prev_check + 0x36] + 0x01);
+	// The size of last interval
+	size_t dangling = (isLR) ? 0x15 : 0x35;
 
-	// Final checksum has it's own magic number
-	save[prev_check + 0x36] = ~(sum + 0xFF) + 1 + 0xCA; 
+	// Subtract the two extra bytes from the orignal save that got caught in our sum
+	sum -= (save[prev_check + dangling] + 0x01);
+
+	// Final checksum
+	save[prev_check + dangling] = ~(sum + dangling) + 1; 
 
 	return;
 }
 
 // Extracts an image from the save
 std::vector<uint8_t> ExtractImage(const std::vector<uint8_t>& save) {
-    size_t emblem_offset = FindOffset(save);
+	bool isLR = save.size() == kLRSaveSize;
+	size_t emblem_offset = FindOffset(save);
+	size_t image_offset = (isLR) ? kLRImageOffset : kImageOffset;
 
 	uint8_t pixels[kNumPixels]; 
 	uint8_t colors[kPaletteSize]; 
 
 	for (int i = 0; i < kNumPixels; i++) {
-		pixels[i] = save[OffsetIndex(kImageOffset + i, emblem_offset)];
+		pixels[i] = save[OffsetIndex(image_offset + i, emblem_offset)];
 	}
 
 	for (int i = 0; i < kPaletteSize; i++) {
-		uint8_t c = save[OffsetIndex(kImageOffset + kNumPixels + i, emblem_offset)];
+		uint8_t c = save[OffsetIndex(image_offset + kNumPixels + i, emblem_offset)];
 
 		// The emblem only has on/off alpha but encodes full opacity as 0x80
 		if (i % 4 == 3 && c != 0)
@@ -145,7 +156,7 @@ std::vector<uint8_t> ExtractImage(const std::vector<uint8_t>& save) {
 	std::vector<uint8_t> image(kNumPixels * 4, 0);
 	for (int i = 0; i < kNumPixels; i++)
 		for (int c = 0; c < 4; c++)
-			image[i*4 + c] = colors[UnscramblePalette(pixels[i])*4 + c];
+			image[i*4 + c] = (isLR) ? colors[pixels[i]*4 + c] : colors[UnscramblePalette(pixels[i])*4 + c];
 
 	return image;
 }

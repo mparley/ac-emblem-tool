@@ -24,13 +24,16 @@ So far I've tested and confirmed it's working with the following games on PS2:
     Armored Core 3 (US)
     Silent Line: Armored Core (US)
     Armored Core 3: Silent Line (JP)
+    Armored Core: Nexus (US)
+    Armored Core: Nine Breaker (US)
+    Armored Core: Last Raven (US)
 
 Haven't gotten around to the others yet but they will probably work too.
 
 ## Usage
 
 This tool should work with any save format that doesn't mess with the raw emblem
-data. So far I've tested a few like .psu and .sps/.xpo and they seem to work with
+data\*. So far I've tested a few like .psu and .sps/.xpo and they seem to work with
 [mymc](http://www.csclub.uwaterloo.ca:11068/mymc/) and pcsx2 but I haven't tried
 on the actual hardware.
 
@@ -38,6 +41,12 @@ The simplest is to just use the *"convert"* option in pcsx2's memcard menu to
 *convert* a memory card to a folder structure and access the emblem save file
 directly. The folder and save file will both be named something like *BASLUS-20435E00*
 where *BASLUS-20435* is the game code (AC3) and *E00* means the first emblem save.
+
+*\*Except for Last Raven.* Since it infuriatingly doesn't just use the same format 
+as the others (different structure/doesn't scramble colors),
+**Last Raven saves must be passed in as the raw emblem data file directly.**
+They are stored in a single folder like *BASLUS-21338EMB* for US version and
+each emblem is a file in that directory named *dataX* where *X* is a number 0-7.
 
 **The image must be a 128 x 128 png file with a maximum of 255 colors.** 
 You can have transparency but anything not fully opaque will be made fully

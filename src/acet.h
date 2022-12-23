@@ -7,7 +7,9 @@
 #include <cstdint>
 
 const unsigned kSaveSize = 0x4440;
+const unsigned kLRSaveSize = 0x4420;
 const unsigned kImageOffset = 0x24; // The actual image data starts at offset 0x24
+const unsigned kLRImageOffset = 0x4;
 const unsigned kImageWidth = 128;
 const unsigned kImageHeight = 128;
 const unsigned kNumPixels = 0x4000; // 128*128 pixels
