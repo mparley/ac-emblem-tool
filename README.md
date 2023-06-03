@@ -32,25 +32,29 @@ Haven't gotten around to the others yet but they will probably work too.
 
 ## Usage
 
-This tool should work with any save format that doesn't mess with the raw emblem
-data\*. So far I've tested a few like .psu and .sps/.xpo and they seem to work with
-[mymc](http://www.csclub.uwaterloo.ca:11068/mymc/) and pcsx2 but I haven't tried
-on the actual hardware.
-
 The simplest is to just use the *"convert"* option in pcsx2's memcard menu to 
 *convert* a memory card to a folder structure and access the emblem save file
 directly. The folder and save file will both be named something like *BASLUS-20435E00*
-where *BASLUS-20435* is the game code (AC3) and *E00* means the first emblem save.
+where *BASLUS-20435* is the game code (AC3) and *E00* means the first emblem save. 
 
-*\*Except for Last Raven.* Since it infuriatingly doesn't just use the same format 
-as the others (different structure/doesn't scramble colors),
-**Last Raven saves must be passed in as the raw emblem data file directly.**
-They are stored in a single folder like *BASLUS-21338EMB* for US version and
-each emblem is a file in that directory named *dataX* where *X* is a number 0-7.
+Note: Last Raven has a different save structure. LR emblem saves are stored in a single 
+folder named *BASLUS-21338EMB* (for US version, JP is probably similar) and
+each emblem is a file in that directory named *dataX* where *X* is a number 0-7. The
+same methods should apply just use the tool on one of those files.
+
+This tool *"should"* work with any of those old single-save formats made for cables 
+transfering saves to an actual PS2 as long as it doesn't mess with the raw data too much. 
+Though it can't do LR in these old save formats since it uses a different structure but the
+others "should"/might work. Your milage may vary. So far I've tested a few like .psu and 
+.sps/.xpo and they seem to work with injecting into a memcard with 
+[mymc](http://www.csclub.uwaterloo.ca:11068/mymc/) 
+and running on pcsx2 but I haven't tried on the actual hardware.
 
 **The image must be a 128 x 128 png file with a maximum of 255 colors.** 
 You can have transparency but anything not fully opaque will be made fully
-transparent.
+transparent. Again it *"should"* work with these limits since it counts colors
+but I've ran into problems using some online converters. The safest bet is 
+probably to just use something like ImageMagick to convert to PNG8 beforehand.
 
 Otherwise, using the tool is pretty simple. 
 
