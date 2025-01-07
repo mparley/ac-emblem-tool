@@ -11,6 +11,14 @@ using namespace std;
 
 const uint8_t kPngSig[8] = { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A };
 
+void ExitMessage(std::string message) {
+	std::cout << message
+		<< "\nExiting\n" 
+		<< "Press enter key to continue...\n";
+	std::cin.get();
+	exit(EXIT_FAILURE);
+}
+
 vector<uint8_t> ReadFile(string filename) {
 	ifstream infile(filename, ios::binary|ios::ate);
 	if (!infile)
@@ -84,32 +92,38 @@ void ModifySave(string savename, string imagename) {
 }
 
 int main(int argc, char** argv) {
-	if (argc == 2) {
-		if (isPNG(argv[1]))
-			ExitMessage("PNG detected without save file - you need to specify a save file");
-		WriteImage(argv[1]);
+	try {
+		if (argc == 2) {
+			if (isPNG(argv[1]))
+				ExitMessage("PNG detected without save file - you need to specify a save file");
+			WriteImage(argv[1]);
 
-	} else if (argc == 3) {
-		bool b[2];
-		b[0] = isPNG(argv[1]);
-		b[1] = isPNG(argv[2]);
+		} else if (argc == 3) {
+			bool b[2];
+			b[0] = isPNG(argv[1]);
+			b[1] = isPNG(argv[2]);
 
-		if (b[0] && b[1])
-			ExitMessage("Both arguments are PNGs - Need a savefile to inject to");
-		else if (isPNG(argv[1]))
-			ModifySave(argv[2], argv[1]);
-		else if (isPNG(argv[2]))
-			ModifySave(argv[1], argv[2]);
-		else
-			ExitMessage("Neither argument is a PNG - Need a PNG image to inject");
+			if (b[0] && b[1])
+				ExitMessage("Both arguments are PNGs - Need a savefile to inject to");
+			else if (isPNG(argv[1]))
+				ModifySave(argv[2], argv[1]);
+			else if (isPNG(argv[2]))
+				ModifySave(argv[1], argv[2]);
+			else
+				ExitMessage("Neither argument is a PNG - Need a PNG image to inject");
 
-	} else {
-		cout << "AC Emblem Tool\n";
-		cout << "--------------\n\n";
-		cout << "PNG extraction:\n\n\t" << argv[0] << " SAVEFILE\n\n";
-		cout << "PNG injection:\n\n\t" << argv[0] << " SAVEFILE yourimage.png\n\n";
-		cout << "Press enter key to continue...";
-		cin.get();
+		} else {
+			cout << "AC Emblem Tool\n";
+			cout << "--------------\n\n";
+			cout << "PNG extraction:\n\n\t" << argv[0] << " SAVEFILE\n\n";
+			cout << "PNG injection:\n\n\t" << argv[0] << " SAVEFILE yourimage.png\n\n";
+			cout << "Press enter key to continue...";
+			cin.get();
+		}
+	} catch (exception &e) {
+		ExitMessage(e.what());
+	} catch (...) {
+		ExitMessage("Something went wrong. I have no clue what.");
 	}
 
 	return EXIT_SUCCESS;

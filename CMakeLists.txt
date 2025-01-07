@@ -1,19 +1,14 @@
-cmake_minimum_required(VERSION 3.16.3)
+cmake_minimum_required(VERSION 3.14 FATAL_ERROR)
 
-project(acet)
+project(acet LANGUAGES CXX)
 
-option(STATIC_BUILD "Build a static binary." ON)
+include(FetchContent)
 
-if (STATIC_BUILD)
-    set(CMAKE_EXE_LINKER_FLAGS "-static")
-    set(CMAKE_FIND_LIBRARY_SUFFIXES ".a" CONFIG)
-    set(BUILD_SHARED_LIBS OFF)
-endif()
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(wxBUILD_SHARED OFF)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 
-add_executable(${PROJECT_NAME} src/main.cpp src/acet.cpp)
-
-add_library(lodepng LodePNG/lodepng.cpp)
-
-target_link_libraries(${PROJECT_NAME} PUBLIC lodepng)
-
-target_include_directories(${PROJECT_NAME} PUBLIC LodePNG)
+add_subdirectory(acet)
+add_subdirectory(acet-gui)
+add_subdirectory(acet-cli)

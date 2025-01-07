@@ -1,13 +1,5 @@
 #include "acet.h"
 
-void ExitMessage(std::string message) {
-	std::cout << message
-		<< "\nExiting\n" 
-		<< "Press enter key to continue...\n";
-	std::cin.get();
-	exit(EXIT_FAILURE);
-}
-
 // Offsets the index and accounts for checksum bytes shifting the index
 size_t OffsetIndex(size_t i, size_t emblem_offset) {
 	return emblem_offset + i + (i)/0x3FF;
@@ -51,11 +43,11 @@ size_t FindOffset(const std::vector<uint8_t>& save) {
 				j = 0;
 		}
 
-		if (!found) ExitMessage("Couldn't find emblem data in save file.");
-
+		if (!found)
+			throw std::runtime_error("FindOffset: Could't find emblem data in the save file.");
 
 	} else if (save.size() < kSaveSize && save.size() != kLRSaveSize) {
-		ExitMessage("Save file is too small to be an emblem save");
+		throw std::runtime_error("FindOffset: File is too small to be an Emblem Save");
 	}
 
 	return offset;
@@ -77,7 +69,7 @@ void InjectImage(std::vector<uint8_t>& save, const std::vector<uint8_t>& image) 
 		// Adding color to hash map to count non-duplicate colors and build palette
 		if (palette_map.find(c) == palette_map.end()) {
 			if (palette_map.size() > 256)
-				ExitMessage("Your PNG has more than 255 colors + alpha color");
+				throw std::runtime_error("InjectImage: Counted more than 255 colors + alpha in the PNG");
 
 			palette_map[c] = palette_map.size();
 
@@ -159,4 +151,19 @@ std::vector<uint8_t> ExtractImage(const std::vector<uint8_t>& save) {
 			image[i*4 + c] = (isLR) ? colors[pixels[i]*4 + c] : colors[UnscramblePalette(pixels[i])*4 + c];
 
 	return image;
+}
+
+std::vector<uint8_t> ReadSaveFile(std::string filename) {
+	std::ifstream infile(filename, std::ios::binary|std::ios::ate);
+	if (!infile)
+		throw std::runtime_error("ReadSaveFile: Could't open file");
+
+	size_t save_size = infile.tellg();
+	std::vector<uint8_t> buffer(save_size, 0);
+
+	infile.seekg(0, infile.beg);
+	infile.read((char*)buffer.data(), save_size);
+	infile.close();
+
+	return buffer;
 }
