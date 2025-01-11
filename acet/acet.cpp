@@ -69,7 +69,7 @@ void InjectImage(std::vector<uint8_t>& save, const std::vector<uint8_t>& image) 
 		// Adding color to hash map to count non-duplicate colors and build palette
 		if (palette_map.find(c) == palette_map.end()) {
 			if (palette_map.size() > 256)
-				throw std::runtime_error("InjectImage: Counted more than 255 colors + alpha in the PNG");
+				throw std::runtime_error("InjectImage: Counted more than 255 colors + alpha in the image");
 
 			palette_map[c] = palette_map.size();
 
