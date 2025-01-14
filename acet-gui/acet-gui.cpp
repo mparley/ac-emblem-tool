@@ -5,7 +5,6 @@
 #include <iostream>
 #include <string>
 #include <wx/filepicker.h>
-#include <wx/generic/paletteg.h>
 #include <wx/image.h>
 #include <wx/log.h>
 #include <wx/msgdlg.h>
@@ -28,15 +27,17 @@ private:
   ImagePanel *imagePanel;
   wxFilePickerCtrl *savePicker;
 
+  void BackupSave();
+  wxImage ExtractHelper(wxString filename);
+  void InjectHelper(wxString savename, wxString imagename);
+
   void OnMenuOpenSave(wxCommandEvent &event);
   void OnMenuExit(wxCommandEvent &event);
   void OnMenuAbout(wxCommandEvent &event);
   void OnMenuExtract(wxCommandEvent &event);
   void OnMenuInject(wxCommandEvent &event);
   void OnSavePicked(wxFileDirPickerEvent &event);
-
-  void BackupSave();
-  wxImage ExtractHelper(wxString filename);
+  void OnFilesDropped(wxDropFilesEvent &event);
 };
 
 bool ACETGui::OnInit() {
@@ -69,6 +70,7 @@ MainFrame::MainFrame()
   : wxFrame(nullptr, wxID_ANY, "ACET Gui")
 {
   wxMenu *menuFile = new wxMenu;
+  DragAcceptFiles(true);
 
   menuFile->Append(wxID_OPEN, "&Open Save...\tCtrl-O", "Open AC emblem save file to edit");
   auto menuExtractID = menuFile->Append(wxID_ANY, "&Extract Image As...\tCtrl-E",
@@ -113,6 +115,7 @@ MainFrame::MainFrame()
   // sizer->Add(bottomSizer, 0, wxEXPAND | wxTOP | wxBOTTOM, 10);
 
   Bind(wxEVT_FILEPICKER_CHANGED, &MainFrame::OnSavePicked, this, savePicker->GetId());
+  Bind(wxEVT_DROP_FILES, &MainFrame::OnFilesDropped, this, wxID_ANY);
 
   mainPanel->SetSizer(sizer);
   imagePanel->SetMinSize(wxSize(384, 384));
@@ -120,15 +123,32 @@ MainFrame::MainFrame()
   // SetClientSize(384, 440);
 }
 
-void MainFrame::OnMenuExit(wxCommandEvent &event) {
-  Close(true);
-}
+void MainFrame::BackupSave() {
+  if (savePicker->GetPath().IsEmpty()) {
+    wxLogError("BackupSave: No savefile to backup");
+    return;
+  }
 
-void MainFrame::OnMenuAbout(wxCommandEvent &event) {
-  wxMessageBox(
-    "This a tool for injecting and extracting images from PS2 Armored Core emblem saves.",
-    "About ACET-GUI", wxOK | wxICON_INFORMATION
-  );
+  auto backup = wxGetCwd() + "/acet-backup";
+
+  if (!wxDirExists(backup) && !wxMkdir(backup)) {
+    wxLogError("BackupSave: Couldn't make acet-backup");
+    return;
+  }
+
+  backup += wxString::Format(wxT("/%ld"), wxGetLocalTime());
+
+  if (!wxDirExists(backup) && !wxMkdir(backup)) {
+    wxLogError("BackupSave: Couldn't make " + backup);
+    return;
+  }
+
+  if (!wxCopyFile(savePicker->GetPath(),
+    backup + "/" + savePicker->GetFileName().GetName()))
+  {
+    wxLogError("BackupSave: Couldn't copy save file");
+    return;
+  }
 }
 
 wxImage MainFrame::ExtractHelper(wxString filename) {
@@ -167,10 +187,70 @@ wxImage MainFrame::ExtractHelper(wxString filename) {
   return emblem;
 }
 
-void MainFrame::OnSavePicked(wxFileDirPickerEvent &event) {
-  auto savefile = event.GetPath();
-  auto emblem = ExtractHelper(savefile);
-  imagePanel->SetImage(emblem);
+void MainFrame::InjectHelper(wxString savename, wxString imagename) {
+  auto image = wxImage(imagename);
+  if (!image.IsOk()) {
+    wxLogError("OnMenuInject: Image not ok");
+    return;
+  }
+
+  int colors = 256;
+
+  if (!image.HasMask()) {
+    if (!image.HasAlpha()) {
+      image.InitAlpha();
+      colors = 255;
+    }
+    image.ConvertAlphaToMask();
+  }
+
+  if (image.GetWidth() > 128 || image.GetHeight() > 128)
+    image.Rescale(128, 128);
+
+  if (image.CountColours(colors+1) > colors) {
+    wxImage quantized;
+    wxPalette *pal = NULL;
+    if (wxQuantize::Quantize(image, quantized, &pal, colors, 0, wxQUANTIZE_FILL_DESTINATION_IMAGE))
+      image = quantized;
+  }
+
+  BackupSave();
+
+  std::vector<uint8_t> save = ReadSaveFile((std::string)savename);
+  std::vector<uint8_t> inImage;
+
+  for (int y = 0; y < 128; y++)
+    for (int x = 0; x < 128; x++) {
+      if (image.IsTransparent(x,y)) {
+        inImage.push_back(0x00);
+        inImage.push_back(0x00);
+        inImage.push_back(0x00);
+        inImage.push_back(0x00);
+      } else {
+        inImage.push_back(image.GetRed(x, y));
+        inImage.push_back(image.GetGreen(x, y));
+        inImage.push_back(image.GetBlue(x, y));
+        // auto alpha = image.IsTransparent(x,y) ? 0x00 : 0xFF;
+        inImage.push_back(0xFF);
+      }
+    }
+
+  InjectImage(save, inImage);
+
+  std::ofstream outfile(std::string(savename), std::ios::binary);
+  outfile.write((char *)save.data(), save.size());
+  outfile.close();
+}
+
+void MainFrame::OnMenuExit(wxCommandEvent &event) {
+  Close(true);
+}
+
+void MainFrame::OnMenuAbout(wxCommandEvent &event) {
+  wxMessageBox(
+    "This a tool for injecting and extracting images from PS2 Armored Core emblem saves.",
+    "About ACET-GUI", wxOK | wxICON_INFORMATION
+  );
 }
 
 void MainFrame::OnMenuOpenSave(wxCommandEvent &event) {
@@ -200,34 +280,6 @@ void MainFrame::OnMenuExtract(wxCommandEvent &event) {
   image.SaveFile(dialog.GetPath());
 }
 
-void MainFrame::BackupSave() {
-  if (savePicker->GetPath().IsEmpty()) {
-    wxLogError("BackupSave: No savefile to backup");
-    return;
-  }
-
-  auto backup = wxGetCwd() + "/acet-backup";
-
-  if (!wxDirExists(backup) && !wxMkdir(backup)) {
-    wxLogError("BackupSave: Couldn't make acet-backup");
-    return;
-  }
-
-  backup += wxString::Format(wxT("/%ld"), wxGetLocalTime());
-
-  if (!wxDirExists(backup) && !wxMkdir(backup)) {
-    wxLogError("BackupSave: Couldn't make " + backup);
-    return;
-  }
-
-  if (!wxCopyFile(savePicker->GetPath(),
-    backup + "/" + savePicker->GetFileName().GetName()))
-  {
-    wxLogError("BackupSave: Couldn't copy save file");
-    return;
-  }
-}
-
 void MainFrame::OnMenuInject(wxCommandEvent &event) {
   if (savePicker->GetPath().IsEmpty()) {
     wxLogError("OnMenuInect: No savefile selected");
@@ -238,52 +290,45 @@ void MainFrame::OnMenuInject(wxCommandEvent &event) {
   if (dialog.ShowModal() == wxID_CANCEL)
     return;
 
-  auto image = wxImage(dialog.GetPath());
-  if (!image.IsOk()) {
-    wxLogError("OneMenuInject: Image not ok");
+  InjectHelper(savePicker->GetPath(), dialog.GetPath());
+  auto emblem = ExtractHelper(savePicker->GetPath());
+  imagePanel->SetImage(emblem);
+}
+
+void MainFrame::OnSavePicked(wxFileDirPickerEvent &event) {
+  auto savefile = event.GetPath();
+  auto emblem = ExtractHelper(savefile);
+  imagePanel->SetImage(emblem);
+}
+
+void MainFrame::OnFilesDropped(wxDropFilesEvent &event) {
+  wxString imagename, savename;
+  auto filenames = event.GetFiles();
+
+  if (!savePicker->GetPath().IsEmpty())
+    savename = savePicker->GetPath();
+
+  for (int i = 0; i < event.GetNumberOfFiles(); i++) {
+    if (wxImage::CanRead(filenames[i])) {
+      imagename = filenames[i];
+    } else {
+      savename = filenames[i];
+    }
+  }
+
+  if (savename.IsEmpty()) {
+    wxMessageBox("Couldn't find a possible emblem save in dropped files");
     return;
   }
 
-  if (image.HasAlpha())
-    image.ConvertAlphaToMask();
+  savePicker->SetPath(savename);
+  auto emblem = ExtractHelper(savename);
+  imagePanel->SetImage(emblem);
 
-  /*image = image.Scale(128, 128, wxIMAGE_QUALITY_HIGH);*/
-  if (image.GetWidth() > 128 || image.GetHeight() > 128)
-    image.Rescale(128, 128);
-
-  if (image.CountColours(257) > 256) {
-    wxImage quantized;
-    wxPalette *pal = NULL;
-    if (wxQuantize::Quantize(image, quantized, &pal, 256, 0, wxQUANTIZE_FILL_DESTINATION_IMAGE))
-      image = quantized;
+  if (!imagename.IsEmpty()) {
+    InjectHelper(savename, imagename);
   }
 
-  if (!image.HasAlpha())
-    image.InitAlpha();
-
-  /*image.ConvertAlphaToMask();*/
-  /*wxQuantize::Quantize(image, image, 255);*/
-
-  BackupSave();
-
-  auto savename = savePicker->GetPath();
-  std::vector<uint8_t> save = ReadSaveFile((std::string)savename);
-  std::vector<uint8_t> inImage;
-
-  for (int y = 0; y < 128; y++)
-    for (int x = 0; x < 128; x++) {
-      inImage.push_back(image.GetRed(x, y));
-      inImage.push_back(image.GetGreen(x, y));
-      inImage.push_back(image.GetBlue(x, y));
-      inImage.push_back(image.GetAlpha(x, y));
-    }
-
-  InjectImage(save, inImage);
-
-  std::ofstream outfile(std::string(savename), std::ios::binary);
-  outfile.write((char *)save.data(), save.size());
-  outfile.close();
-
-  auto emblem = ExtractHelper(savename);
+  emblem = ExtractHelper(savename);
   imagePanel->SetImage(emblem);
 }

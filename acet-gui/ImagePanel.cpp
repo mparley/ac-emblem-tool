@@ -34,6 +34,10 @@ void ImagePanel::OnPaint(wxPaintEvent& event) {
   if (image.IsOk()) {
     int fw, fh;
     dc.GetSize(&fw, &fh);
+
+    int smaller = fw < fh ? fw : fh;
+    bimage = wxBitmap(image.Scale(smaller, smaller, wxIMAGE_QUALITY_NEAREST));
+
     int x = fw / 2 - (bimage.GetSize().GetWidth() / 2);
     int y = fh / 2 - (bimage.GetSize().GetHeight() / 2);
     dc.DrawBitmap(bimage, x, y, false);
