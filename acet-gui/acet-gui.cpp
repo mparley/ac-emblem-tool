@@ -311,7 +311,7 @@ void MainFrame::OnFilesDropped(wxDropFilesEvent &event) {
   for (int i = 0; i < event.GetNumberOfFiles(); i++) {
     if (wxImage::CanRead(filenames[i])) {
       imagename = filenames[i];
-    } else {
+    } else if (FindPaletteOffset((std::string)filenames[i])) {
       savename = filenames[i];
     }
   }

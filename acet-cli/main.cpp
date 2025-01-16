@@ -97,6 +97,11 @@ int main(int argc, char** argv) {
 				ExitMessage("PNG detected without save file - you need to specify a save file");
 			WriteImage(argv[1]);
 
+      /*size_t off = 0;*/
+      /*bool found = FindPaletteOffset(argv[1], off);*/
+      /*cout << "FindPaletteOffset: " << found << " at " << off << "\n";*/
+      /*ExitMessage("Yep");*/
+
 		} else if (argc == 3) {
 			bool b[2];
 			b[0] = isPNG(argv[1]);

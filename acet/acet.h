@@ -28,6 +28,10 @@ uint8_t UnscramblePalette(uint8_t index);
 
 size_t FindOffset(const std::vector<uint8_t>& save);
 
+bool FindPaletteOffset(std::string filename, size_t& offset, size_t stop = 0xFFFF);
+
+bool FindPaletteOffset(std::string filename, size_t stop = 0xFFFF);
+
 void InjectImage(std::vector<uint8_t>& save, const std::vector<uint8_t>& image);
 
 std::vector<uint8_t> ExtractImage(const std::vector<uint8_t>& save);

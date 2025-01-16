@@ -1,4 +1,5 @@
 #include "acet.h"
+#include <stdexcept>
 
 // Offsets the index and accounts for checksum bytes shifting the index
 size_t OffsetIndex(size_t i, size_t emblem_offset) {
@@ -51,6 +52,51 @@ size_t FindOffset(const std::vector<uint8_t>& save) {
 	}
 
 	return offset;
+}
+
+bool FindPaletteOffset(std::string filename, size_t& offset, size_t stop) {
+  bool found = false;
+  size_t end = stop;
+  auto infile = std::ifstream(filename);
+
+  if (!infile.is_open())
+    throw std::runtime_error("FindPaletteOffset: Couldn't open file");
+
+  infile.seekg(0, infile.end);
+  size_t filesize = infile.tellg();
+  if (filesize < end) end = filesize;
+
+  infile.seekg(0, infile.beg);
+  while(infile.good() && infile.tellg() < end) {
+    size_t curr = infile.tellg();
+    uint8_t* buffer = new uint8_t[9];
+    infile.read((char*)buffer, 9);
+
+    found = true;
+    for (int i = 0, off = 0; i < 8; i++) {
+      if (curr+i % 0x400 == 0x3FF) off = 1;
+      std::cout << (size_t)buffer[i+off] << " ";
+      if (i < 4 && buffer[i+off] != 0x00) {
+        found = false;
+        break;
+      } else if (i == 7 && buffer[i+off] != 0x80) {
+        found = false;
+        break;
+      }
+    }
+
+    delete[] buffer;
+    if (found) break;
+    infile.seekg(curr+1);
+  }
+
+  infile.close();
+  return found;
+}
+
+bool FindPaletteOffset(std::string filename, size_t stop) {
+  size_t val = 0;
+  return FindPaletteOffset(filename, val, stop);
 }
 
 // Injects image into the emblem save. Modified save is passed back thru param
