@@ -6,9 +6,10 @@ It mostly works for me but its kinda half-cooked spaghetti right now so YMMV
 
 ## Usage
 
-1. **Download a binary from the releases page.** I'll try and put 64 bit windows and linux
-static builds there when I update things. Even though wxWidgets supports Mac,
-I don't have a Mac machine so sorry about that - you can try building it (see below).
+1. **Download a binary from the releases page.** I'll try and put 64 bit windows
+static builds there when I update things. Even though wxWidgets supports Mac and Linux,
+I don't have a Mac machine, and I'm kinda dumb and am having trouble with the 
+linux version right now - you can try building it yourself for the time being (see below).
 Also try to extract the program to a folder that your OS will let it write files to
 (ie not Program Files) so it can make backups of saves.
 
@@ -59,17 +60,18 @@ case happens and the file is ruined.
 
 ## Building
 
-First install wxWidgets and then clone/download this repo and build it with cmake. 
+First install wxWidgets and dependencies and then clone/download this repo and build
+it with cmake. 
 
     mkdir build
     cmake -S . -B build/
     cmake --build build
 
-I recommend installing wxWidgets to make things easier on yourself.
 Cmake *will* try to download and build wxWidgets if it doesn't find it on your system
 but that will make building take a long time and it might not even work if you are
-missing something wxWidgets requires. It's much simpler to get it yourself and put
-it in your path unless you really *really* don't want to.
+missing some dependencies. So it's probably better to install from your package manager
+or something. I'm pretty bad with cmake and I know there is some shit I still need to sort out
+in that area, sorry in advance.
 
 ## Shout Outs
 
@@ -78,7 +80,7 @@ I never got this Armored Core 3 tool to work for me but looking at it's code hel
 me fix a couple things I had wrong when I was first making the cli tool.
 
 The cli/classic version uses [LodePNG](https://lodev.org/lodepng/) to handle PNG files.
-Very usefull and easy for idiots like me. It's licence is included in the code but
+Very useful and easy for idiots like me. It's licence is included in the code but
 you can also peep it [here](https://github.com/lvandeve/lodepng/blob/master/LICENSE).
 
 The gui version of this tool uses [wxWidgets](https://wxwidgets.org/). Allows acet-gui
