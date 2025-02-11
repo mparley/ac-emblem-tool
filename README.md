@@ -1,86 +1,87 @@
-# Armored Core (PS2) Emblem Tool
+# Armored Core (PS2) Emblem Tool GUI
 
 Tool for extracting and injecting PNGs to/from Armored Core PS2 emblem saves.
 
-While replaying through the games, I thought it would be cool to use an image from
-my PC as an emblem. After some searching, I found a few tools that I unfortunately
-couldn't get to work.
-
-[Armoured Core 2 Emblem Tool](https://www.ps2savetools.com/download/armoured-core-2-emblem-tool/)
-requires an older version X-Port/Sharkport save format that none of the ps2 save
-converters I could find exported to.
-
-[Armored Core 3 Emblem Extractor/Injector](https://www.vg-resource.com/thread-23051.html)
-garbled the extracted image and would throw errors when I tried injecting.
-
-So I ended up slapping this tool together referencing the AC3 tool's source and
-spending a day or so staring at hex data to figure out the format. I also leveraged
-[LodePNG](https://lodev.org/lodepng/) to handle encoding/decoding PNGs.
-
-So far I've tested and confirmed it's working with the following games on PS2:
-
-    Armored Core 2 (US)
-    Armored Core 2: Another Age (US)
-    Armored Core 3 (US)
-    Silent Line: Armored Core (US)
-    Armored Core 3: Silent Line (JP)
-    Armored Core: Nexus (US)
-    Armored Core: Nine Breaker (US)
-    Armored Core: Last Raven (US)
-
-Haven't gotten around to the others yet but they will probably work too.
+It mostly works for me but its kinda half-cooked spaghetti right now so YMMV
 
 ## Usage
 
-The simplest is to just use the *"convert"* option in pcsx2's memcard menu to 
-*convert* a memory card to a folder structure and access the emblem save file
-directly. The folder and save file will both be named something like *BASLUS-20435E00*
+1. **Download a binary from the releases page.** I'll try and put 64 bit windows and linux
+static builds there when I update things. Even though wxWidgets supports Mac,
+I don't have a Mac machine so sorry about that - you can try building it (see below).
+Also try to extract the program to a folder that your OS will let it write files to
+(ie not Program Files) so it can make backups of saves.
+
+2. **Get the RAW emblem save on your computer somehow.** If you play with actual hardware
+there are ways to transfer memory cards to PC, you'll have to use something like
+[mymc](http://www.csclub.uwaterloo.ca:11068/mymc/) 
+to convert/extract the raw save. If you emulate with PCSX2 the simplest way
+just use the *"convert"* option in pcsx2's memcard menu to convert the memory card
+to a folder on your hard drive where you can go in and find the emblem. 
+The folder and save file will both be named something like *BASLUS-20435E00*
 where *BASLUS-20435* is the game code (AC3) and *E00* means the first emblem save. 
 
-Note: Last Raven has a different save structure. LR emblem saves are stored in a single 
-folder named *BASLUS-21338EMB* (for US version, JP is probably similar) and
-each emblem is a file in that directory named *dataX* where *X* is a number 0-7. The
-same methods should apply just use the tool on one of those files.
+    NOTE: Last Raven has a different save structure. LR emblem saves are stored in a single 
+    folder named *BASLUS-21338EMB* (for the US version) and
+    each emblem is a file in that directory named *dataX* where *X* is a number 0-7. 
 
-This tool *"should"* work with any of those old single-save formats made for cables 
-transfering saves to an actual PS2 as long as it doesn't mess with the raw data too much. 
-Though it can't do LR in these old save formats since it uses a different structure but the
-others "should"/might work. Your milage may vary. So far I've tested a few like .psu and 
-.sps/.xpo and they seem to work with injecting into a memcard with 
-[mymc](http://www.csclub.uwaterloo.ca:11068/mymc/) 
-and running on pcsx2 but I haven't tried on the actual hardware.
+3. **Use the tool with your save.**
 
-**The image must be a 128 x 128 png file with a maximum of 255 colors.** 
-You can have transparency but anything not fully opaque will be made fully
-transparent. Again it *"should"* work with these limits since it counts colors
-but I've ran into problems using some online converters. The safest bet is 
-probably to just use something like ImageMagick to convert to PNG8 beforehand.
+    **For the GUI tool:**
+    * You can drag and drop, press the Browse button, or *File > Open Save...* to load
+    a save, the emblem should display (nearly) instantly in the window.
+    * You can then
+    extract that image with *File > Extract Image As...* .
+    * You can drag and drop or 
+    *File > Inject Image...* to inject an image into the save and the emblem in the
+    window should change (nearly) instantly. 
+    * When injecting the tool makes a backup of
+    the save in the folder *acet-backup* in the application's directory and you should get
+    warning messages if things go too wrong.
+    * Multiple basic image formats are supported
+    and will get quanitzed and resized as needed.
 
-Otherwise, using the tool is pretty simple. 
+    **For the CLI/Coke Classic™ tool:**
+    * Pass in an emblem save by itself to extract a PNG
+    * Pass in both an emblem save and a PNG to inject the PNG into the save.
+    * You can try dragging and dropping onto the exe in windows to pass in the files:
+    one save to extract and both the save and PNG to inject.
+    * **The image must be a 128 x 128 PNG file with a maximum of 255 colors.** 
+    You can have transparency but anything not fully opaque will be made fully
+    transparent. It *"should"* work with these limits since it counts colors
+    but I've ran into problems using some online converters. The safest bet is 
+    probably to just use something like ImageMagick to convert to PNG8 beforehand.
 
-1. Just clone/download this repo and compile it. Uses cmake
+4. **Reverse what you did in step 2 to get the save back into the memory card** and hopefully
+it loads in-game and everything is groovy. If not you have the backups the tool
+made and at the very least its just the emblem save and not your game save if worst
+case happens and the file is ruined.
 
-        mkdir build
-        cmake -S . -B build/
-        cmake --build build
-        
-    **Or for windows just grab the binary I included on the releases page.** 
+## Building
 
-2. Copy the emblem save and png to the same directory as the acet application
+First install wxWidgets and then clone/download this repo and build it with cmake. 
 
-3. To extract an image to ``SAVEFILE.png`` run the command and pass in the save file as 
-    the only argument.
+    mkdir build
+    cmake -S . -B build/
+    cmake --build build
 
-        ./acet SAVEFILE
+I recommend installing wxWidgets to make things easier on yourself.
+Cmake *will* try to download and build wxWidgets if it doesn't find it on your system
+but that will make building take a long time and it might not even work if you are
+missing something wxWidgets requires. It's much simpler to get it yourself and put
+it in your path unless you really *really* don't want to.
 
-    To inject an image pass the save and the image as two arguments - **order doesn't matter**.
-    This will make a backup of the original called ``SAVEFILE.backup`` and write 
-    out the modified file into ``SAVEFILE``.
+## Shout Outs
 
-        ./acet SAVEFILE image.png
+[Armored Core 3 Emblem Extractor/Injector](https://www.vg-resource.com/thread-23051.html)
+I never got this Armored Core 3 tool to work for me but looking at it's code helped
+me fix a couple things I had wrong when I was first making the cli tool.
 
-    **Alternatively you can just drag and drop files onto the tool**: a single file 
-    to extract or both files to inject.
+The cli/classic version uses [LodePNG](https://lodev.org/lodepng/) to handle PNG files.
+Very usefull and easy for idiots like me. It's licence is included in the code but
+you can also peep it [here](https://github.com/lvandeve/lodepng/blob/master/LICENSE).
 
-4. Take the modified ``SAVEFILE`` and transfer it back into your memory card and
-    load up the emblem save in-game.
+The gui version of this tool uses [wxWidgets](https://wxwidgets.org/). Allows acet-gui
+to be cross platform (providing I didn't screw something up). wxWidgets has their
+own [licence](https://github.com/wxWidgets/wxWidgets/blob/master/docs/licence.txt).
+

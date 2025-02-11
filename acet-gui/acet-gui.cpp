@@ -247,8 +247,24 @@ void MainFrame::OnMenuExit(wxCommandEvent &event) {
 }
 
 void MainFrame::OnMenuAbout(wxCommandEvent &event) {
+  std::string message = "This a tool for injecting and extracting images from PS2 Armored Core emblem saves.\n";
+  message += "\nBASIC USAGE:\n\n";
+  message += "1. Save your emblem in-game as an Emblem Save\n";
+  message += "2. Get the save on your computer somehow (PCSX2 users can skip this step)\n";
+  message += "3. Convert it to a RAW save file using mymc or PCSX2's memcard folder converter.\n";
+  message += "\t - It should be called something like BASLUS-20014E00 for example\n";
+  message += "\t - BASLUS-20014 is the ps2 game code\n";
+  message += "\t - E00 means emblem save 00\n";
+  message += "\t - The only exception is last raven saves which are named data0, data1, etc. in an EMB folder\n";
+  message += "4. Drag and drop, browse button, or File > Open Save... will load the emblem save and display the image\n";
+  message += "5. File > Extract Image As... will extract the emblem to a file\n";
+  message += "6. Drag and drop, or File > Inject Image... will format and inject the image into the save\n";
+  message += "\t - A backup of the current save will be made in an acet-backup folder where the exe is (so probably don't put the exe in Program Files)\n";
+  message += "\t - Basic image formats like PNG, BMP, GIF, JPEG are supported\n";
+
   wxMessageBox(
-    "This a tool for injecting and extracting images from PS2 Armored Core emblem saves.",
+    // "This a tool for injecting and extracting images from PS2 Armored Core emblem saves.",
+    message,
     "About ACET-GUI", wxOK | wxICON_INFORMATION
   );
 }

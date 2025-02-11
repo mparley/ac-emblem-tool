@@ -56,38 +56,46 @@ size_t FindOffset(const std::vector<uint8_t>& save) {
 
 bool FindPaletteOffset(std::string filename, size_t& offset, size_t stop) {
   bool found = false;
-  size_t end = stop;
-  auto infile = std::ifstream(filename);
+  auto infile = std::ifstream(filename, std::ios::binary);
 
   if (!infile.is_open())
     throw std::runtime_error("FindPaletteOffset: Couldn't open file");
 
   infile.seekg(0, infile.end);
   size_t filesize = infile.tellg();
-  if (filesize < end) end = filesize;
-
+  if (filesize < stop) stop = filesize;
   infile.seekg(0, infile.beg);
-  while(infile.good() && infile.tellg() < end) {
+
+  while(infile.good() && (size_t) infile.tellg() < stop) {
+		uint8_t buffer[13];
     size_t curr = infile.tellg();
-    uint8_t* buffer = new uint8_t[9];
-    infile.read((char*)buffer, 9);
+
+		infile.read((char*)buffer, 13);
+    infile.seekg(curr+1);
+
+		// std::cout << std::hex << curr << " " << (size_t)buffer[0] << ": [";
+		// for (int i = 0; i < 13; i++) {
+		// 	std::cout << std::hex << " " << (size_t) buffer[i];
+		// }
+		// std::cout << " ]\n";
 
     found = true;
-    for (int i = 0, off = 0; i < 8; i++) {
+    for (int i = 0, off = 0; i < 12; i++) {
       if (curr+i % 0x400 == 0x3FF) off = 1;
-      std::cout << (size_t)buffer[i+off] << " ";
+
       if (i < 4 && buffer[i+off] != 0x00) {
         found = false;
         break;
-      } else if (i == 7 && buffer[i+off] != 0x80) {
+      } else if ((i == 7 || i == 11) && buffer[i+off] != 0x80) {
         found = false;
         break;
       }
     }
 
-    delete[] buffer;
-    if (found) break;
-    infile.seekg(curr+1);
+    if (found) {
+			offset = curr;
+			break;
+		}
   }
 
   infile.close();
