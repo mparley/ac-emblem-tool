@@ -1,5 +1,8 @@
 #include "acet.h"
 #include <stdexcept>
+#include <iostream>
+#include <unordered_map>
+#include <fstream>
 
 // Offsets the index and accounts for checksum bytes shifting the index
 size_t OffsetIndex(size_t i, size_t emblem_offset) {
@@ -220,4 +223,138 @@ std::vector<uint8_t> ReadSaveFile(std::string filename) {
 	infile.close();
 
 	return buffer;
+}
+
+std::vector<uint8_t> ExtractImageAC1(const std::string& filename, uint8_t block) {
+  std::ifstream infile(filename, std::ios::binary);
+  if (!infile)
+    throw std::runtime_error("ExtractImageAC1: Couldn't open file");
+
+  const uint8_t factor = 256 / 32;
+  uint8_t header[2];
+  uint8_t checksum[4];
+  uint8_t palette[32];
+  uint8_t colors[64*64/2];
+  std::vector<uint8_t> output;
+  output.reserve(64*64*4);
+
+  infile.seekg(0, infile.beg);
+  infile.read((char*)header, 2);
+
+  if (header[0] == 'S')
+    block = 0;
+  else if (block == 0) {
+    infile.close();
+    throw std::runtime_error("ExtractImageAC1: Attempted accessing block 0 in Memory Card");
+  } else if (block > 15) {
+    infile.close();
+    throw std::runtime_error("ExtractImageAC1: Block out of bounds");
+  }
+
+  infile.seekg(0x2000 * block, infile.beg);
+  infile.seekg(0x200, infile.cur);
+  infile.read((char*)checksum, 4);
+  infile.read((char*)palette, 32);
+  infile.read((char*)colors, 64*64/2);
+  std::cout << "Post position " << infile.tellg() << "\n";
+  infile.close();
+
+  for (uint8_t cByte : colors) {
+    uint8_t left = cByte >> 4;
+    uint8_t right = cByte & 0b1111;
+    uint8_t cIndex[2] = { right, left };
+
+    for (auto i : cIndex) {
+      uint8_t a = (i == 0) ? 0 : 0xFF;
+      output.push_back((palette[i*2] & 0b11111) * factor);
+      output.push_back((((palette[i*2+1] & 0b11) << 3) | (palette[i*2] >> 5)) * factor);
+      output.push_back((palette[i*2+1] >> 2) * factor);
+      output.push_back(a);
+    }
+  }
+
+  std::cout << "Checksum " << (size_t)checksum[0] << " " << (size_t)checksum[1] << " " << (size_t)checksum[2] << "\n";
+  std::cout << "Size " << output.size() << "\n";
+  return output;
+}
+
+void InjectImageAC1(std::string filename, const std::vector<uint8_t>& image, uint8_t block) {
+  if (block > 15) {
+    throw std::runtime_error("InjectImageAC1: Block out of bounds (above 15)");
+  }
+
+  std::fstream fs(filename, std::ios::in | std::ios::out |std::ios::binary);
+  if (!fs)
+    throw std::runtime_error("InjectImageAC1: Couldn't open file");
+
+  fs.seekg(0, fs.beg);
+  char header[2];
+  fs.read(header, 2);
+
+  if (header[0] == 'S')
+    block = 0;
+  else if (block == 0) {
+    fs.close();
+    throw std::runtime_error("InjectImageAC1: Attempted accessing block 0 in Memory Card");
+  }
+
+	std::unordered_map<uint16_t, int> palette_map = { {0x0000, 0} };
+  uint8_t emblemColors[64*64] = {};
+  const uint8_t factor = 256 / 32;
+
+	for (int i = 0; i < image.size() / 4; i++) {
+		// Anything not fully opaque will be made completely transparent
+		uint16_t c = 0;
+		if (image[i*4+3] == 0xFF) {
+      uint8_t r = image[i*4] / factor;
+      uint8_t g = image[i*4+1] / factor;
+      uint8_t b = image[i*4+2] / factor;
+      uint8_t left = (r << 2) | (g >> 3);
+      uint8_t right = (g << 5) | (b & 0b11111);
+      c = (right << 8) | (left);
+    }
+
+		// Adding color to hash map to count non-duplicate colors and build palette
+		if (palette_map.find(c) == palette_map.end()) {
+			if (palette_map.size() > 16)
+				throw std::runtime_error("InjectImage: Counted more than 255 colors + alpha in the image");
+
+			palette_map[c] = palette_map.size();
+		}
+
+    emblemColors[i] = palette_map[c];
+	}
+
+  uint8_t paletteBytes[32] = {};
+  for (auto p : palette_map) {
+    int i = p.second * 2;
+    paletteBytes[i+1] = p.first >> 8;
+    paletteBytes[i] = p.second & 0xFF;
+  }
+
+  uint8_t emblemBytes[64*64/2] = {};
+  for (int i = 0; i < 64*64; i+=2) {
+    emblemBytes[i/2] = (emblemColors[i+1] << 4) | (emblemColors[i] & 0b1111);
+  }
+
+  uint32_t sum = 0;
+  for (auto p : paletteBytes)
+    sum += p;
+  for (auto e : emblemBytes)
+    sum += e;
+
+  uint8_t checksum[4] = {
+    uint8_t(sum),
+    uint8_t(sum >> 8),
+    uint8_t(sum >> 16),
+    uint8_t(sum >> 24)
+  };
+
+  fs.seekp(0x2000 * block);
+  fs.seekp(0x200, fs.cur);
+  fs.write((char*)checksum, 4);
+  fs.write((char*)paletteBytes, 32);
+  fs.write((char*)emblemBytes, 64*64/2);
+  fs.close();
+	return;
 }

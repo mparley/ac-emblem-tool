@@ -1,11 +1,8 @@
 #pragma once
 
-#include <iostream>
 #include <string>
 #include <vector>
-#include <unordered_map>
 #include <cstdint>
-#include <fstream>
 
 const unsigned kSaveSize = 0x4440;
 const unsigned kLRSaveSize = 0x4420;
@@ -37,3 +34,7 @@ void InjectImage(std::vector<uint8_t>& save, const std::vector<uint8_t>& image);
 std::vector<uint8_t> ExtractImage(const std::vector<uint8_t>& save);
 
 std::vector<uint8_t> ReadSaveFile(std::string filename);
+
+std::vector<uint8_t> ExtractImageAC1(const std::string& filename, uint8_t block = 0);
+
+void InjectImageAC1(std::string filename, const std::vector<uint8_t>& image, uint8_t block = 0);

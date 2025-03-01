@@ -34,23 +34,35 @@ vector<uint8_t> ReadFile(string filename) {
 }
 
 bool isPNG(string filename) {
-    ifstream infile(filename, ios::binary);
+  ifstream infile(filename, ios::binary);
 	if (!infile)
-		ExitMessage("Cannot open file " + filename);
+    ExitMessage("Cannot open file " + filename);
 
-    unsigned char b = 0;
-    bool ret = true;
+  unsigned char b = 0;
+  bool ret = true;
 
-    for (int i = 0; i < 8; i++) {
-        infile.read((char*)&b, 1);
-        if (b != kPngSig[i]) {
-            ret = false;
-            break;
-        }
-    }
+  for (int i = 0; i < 8; i++) {
+      infile.read((char*)&b, 1);
+      if (b != kPngSig[i]) {
+          ret = false;
+          break;
+      }
+  }
 
-    infile.close();
-    return ret;
+  infile.close();
+  return ret;
+}
+
+bool isPS1Save(string filename) {
+  ifstream infile(filename, ios::binary);
+  if (!infile)
+    ExitMessage("Cannot open file " + filename);
+
+  char b[2];
+  infile.read(b, 2);
+  infile.close();
+
+  return (b[0] == 'S' || b[0] == 'M') && (b[1] == 'C');
 }
 
 void WriteImage(string savename) {
@@ -69,38 +81,48 @@ void WriteImage(string savename) {
 }
 
 void ModifySave(string savename, string imagename) {
-	vector<uint8_t> save = ReadFile(savename);
+	/*vector<uint8_t> save = ReadFile(savename);*/
 	vector<uint8_t> image;
 
-	ofstream outfile(savename + ".backup", ios::binary);
-	outfile.write((char*)save.data(), save.size());
-	outfile.close();
+	/*ofstream outfile(savename + ".backup", ios::binary);*/
+	/*outfile.write((char*)save.data(), save.size());*/
+	/*outfile.close();*/
 
-	unsigned w = kImageWidth, h = kImageHeight;
+	/*unsigned w = kImageWidth, h = kImageHeight;*/
+	unsigned w = 64, h = 64;
 	unsigned error = lodepng::decode(image, w, h, imagename);
 	if (error) {
 		cout << "Decoder error " << error << ": " << lodepng_error_text(error) << endl;
 		ExitMessage("");
 	}
 
-	InjectImage(save, image);
+	/*InjectImage(save, image);*/
+  InjectImageAC1(savename, image, 1);
 
-	outfile.open(savename, ios::binary);
-	outfile.write((char*)save.data(), save.size());
-	outfile.close();
+	/*outfile.open(savename, ios::binary);*/
+	/*outfile.write((char*)save.data(), save.size());*/
+	/*outfile.close();*/
 }
 
 int main(int argc, char** argv) {
+  cout << argc << "\n";
 	try {
 		if (argc == 2) {
 			if (isPNG(argv[1]))
 				ExitMessage("PNG detected without save file - you need to specify a save file");
-			WriteImage(argv[1]);
-
-      // size_t off = 0;
-      // bool found = FindPaletteOffset(argv[1], off, 0xFFFF);
-      // cout << "FindPaletteOffset: " << found << " at " << off << "\n";
-      // ExitMessage("Yep");
+      
+      if (isPS1Save(argv[1])) {
+        vector<uint8_t> image = ExtractImageAC1(argv[1], 1);
+        vector<uint8_t> png;
+        unsigned error = lodepng::encode(png, image, 64, 64);
+        if(error) {
+          cout << "Encoder error " << error << ": " << lodepng_error_text(error) << endl;
+          ExitMessage("");
+        }
+        lodepng::save_file(png, (string)argv[1] + ".png");
+      } else {
+        WriteImage(argv[1]);
+      }
 
 		} else if (argc == 3) {
 			bool b[2];
