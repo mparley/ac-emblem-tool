@@ -225,7 +225,12 @@ std::vector<uint8_t> ReadSaveFile(std::string filename) {
 	return buffer;
 }
 
-std::vector<uint8_t> ExtractImageAC1(const std::string& filename, uint8_t block) {
+std::vector<uint8_t> ExtractImageAC1(const std::string& filename, bool isMOA, uint8_t block, uint8_t emblemSlot) {
+  if (block > 14)
+    throw std::runtime_error("InjectImageAC1: Block out of bounds (above 14)");
+  if (emblemSlot > 6)
+    throw std::runtime_error("InjectImageAC1: Emblem slot out of bounds");
+
   std::ifstream infile(filename, std::ios::binary);
   if (!infile)
     throw std::runtime_error("ExtractImageAC1: Couldn't open file");
@@ -246,13 +251,13 @@ std::vector<uint8_t> ExtractImageAC1(const std::string& filename, uint8_t block)
   else if (block == 0) {
     infile.close();
     throw std::runtime_error("ExtractImageAC1: Attempted accessing block 0 in Memory Card");
-  } else if (block > 15) {
-    infile.close();
-    throw std::runtime_error("ExtractImageAC1: Block out of bounds");
   }
 
-  infile.seekg(0x2000 * block, infile.beg);
-  infile.seekg(0x200, infile.cur);
+  const size_t off = (0x2000 * block) + (0x820 * emblemSlot);
+  const size_t checksumOff = (isMOA) ? 0x180 : 0x200;
+
+  infile.seekg(off, infile.beg);
+  infile.seekg(checksumOff, infile.cur);
   infile.read((char*)checksum, 4);
   infile.read((char*)palette, 32);
   infile.read((char*)colors, 64*64/2);
@@ -273,27 +278,29 @@ std::vector<uint8_t> ExtractImageAC1(const std::string& filename, uint8_t block)
     }
   }
 
-  std::cout << "Checksum " << (size_t)checksum[0] << " " << (size_t)checksum[1] << " " << (size_t)checksum[2] << "\n";
+  std::cout << "Checksum ";
+  for (auto c : checksum)
+    std::cout << std::hex << (int)c << " ";
+  std::cout << "\n";
   std::cout << "Size " << output.size() << "\n";
   return output;
 }
 
-void InjectImageAC1(std::string filename, const std::vector<uint8_t>& image, uint8_t block) {
-  if (block > 15) {
-    throw std::runtime_error("InjectImageAC1: Block out of bounds (above 15)");
-  }
+void InjectImageAC1(std::string filename, const std::vector<uint8_t>& image, bool isMOA, uint8_t block, uint8_t emblemSlot) {
+  if (block > 14)
+    throw std::runtime_error("InjectImageAC1: Block out of bounds (above 14)");
+  if (emblemSlot > 6)
+    throw std::runtime_error("InjectImageAC1: Emblem slot out of bounds");
 
   std::fstream fs(filename, std::ios::in | std::ios::out |std::ios::binary);
   if (!fs)
     throw std::runtime_error("InjectImageAC1: Couldn't open file");
 
-  fs.seekg(0, fs.beg);
   char header[2];
   fs.read(header, 2);
-
-  if (header[0] == 'S')
+  if (header[0] == 'S') {
     block = 0;
-  else if (block == 0) {
+  } else if (block == 0) {
     fs.close();
     throw std::runtime_error("InjectImageAC1: Attempted accessing block 0 in Memory Card");
   }
@@ -309,9 +316,9 @@ void InjectImageAC1(std::string filename, const std::vector<uint8_t>& image, uin
       uint8_t r = image[i*4] / factor;
       uint8_t g = image[i*4+1] / factor;
       uint8_t b = image[i*4+2] / factor;
-      uint8_t left = (r << 2) | (g >> 3);
-      uint8_t right = (g << 5) | (b & 0b11111);
-      c = (right << 8) | (left);
+      uint8_t left = r | (g << 5);
+      uint8_t right = (g >> 3) | (b << 2);
+      c = (left << 8) | (right);
     }
 
 		// Adding color to hash map to count non-duplicate colors and build palette
@@ -320,6 +327,7 @@ void InjectImageAC1(std::string filename, const std::vector<uint8_t>& image, uin
 				throw std::runtime_error("InjectImage: Counted more than 255 colors + alpha in the image");
 
 			palette_map[c] = palette_map.size();
+      /*std::cout << std::hex << c << "\n";*/
 		}
 
     emblemColors[i] = palette_map[c];
@@ -328,8 +336,8 @@ void InjectImageAC1(std::string filename, const std::vector<uint8_t>& image, uin
   uint8_t paletteBytes[32] = {};
   for (auto p : palette_map) {
     int i = p.second * 2;
-    paletteBytes[i+1] = p.first >> 8;
-    paletteBytes[i] = p.second & 0xFF;
+    paletteBytes[i] = p.first >> 8;
+    paletteBytes[i+1] = p.first & 0xFF;
   }
 
   uint8_t emblemBytes[64*64/2] = {};
@@ -337,24 +345,58 @@ void InjectImageAC1(std::string filename, const std::vector<uint8_t>& image, uin
     emblemBytes[i/2] = (emblemColors[i+1] << 4) | (emblemColors[i] & 0b1111);
   }
 
-  uint32_t sum = 0;
-  for (auto p : paletteBytes)
-    sum += p;
-  for (auto e : emblemBytes)
-    sum += e;
+  const size_t off = (0x2000 * block) + (0x820 * emblemSlot);
+  const size_t checksumOff = (isMOA) ? 0x184 : 0x204;
 
-  uint8_t checksum[4] = {
-    uint8_t(sum),
-    uint8_t(sum >> 8),
-    uint8_t(sum >> 16),
-    uint8_t(sum >> 24)
-  };
-
-  fs.seekp(0x2000 * block);
-  fs.seekp(0x200, fs.cur);
-  fs.write((char*)checksum, 4);
+  fs.seekp(off);
+  fs.seekp(checksumOff, fs.cur);
   fs.write((char*)paletteBytes, 32);
   fs.write((char*)emblemBytes, 64*64/2);
   fs.close();
+  ApplyChecksumAC1(filename, isMOA, block);
 	return;
+}
+
+void ApplyChecksumAC1(std::string filename, bool isMOA, uint8_t block) {
+  if (block > 14)
+    throw std::runtime_error("ApplyChecksumAC1: Block out of bounds (above 14)");
+
+  std::fstream fs(filename, std::ios::in | std::ios::out |std::ios::binary);
+  if (!fs)
+    throw std::runtime_error("ApplyChecksumAC1: Couldn't open file");
+
+  const size_t buffSize = 0x38e2;
+  const size_t checksumOff = (isMOA) ? 0x180 : 0x200;
+
+  uint8_t check[4] = {};
+  uint8_t buffer[buffSize];
+  fs.seekg(0x2000 * block);
+  fs.seekg(checksumOff, fs.cur);
+  fs.read((char*)check, 4);
+  fs.read((char*)buffer, buffSize);
+
+  /*uint32_t old = check[0] | (check[1] << 8) | (check[2] << 16) | (check[3] << 24);*/
+  /*std::cout << "OLD: "<< std::hex << old << "\n";*/
+
+  uint32_t sum = 0;
+  for (auto b : buffer) {
+    sum += b;
+  }
+
+  sum += buffSize;
+  sum = -sum;
+
+  /*uint32_t diff = sum - old;*/
+  /*std::cout << std::hex << "DIFF: " << diff << "\n";*/
+  /*std::cout << "NEW: " << std::hex << sum << "\n";*/
+
+  check[0] = uint8_t(sum);
+  check[1] = uint8_t(sum >> 8);
+  check[2] = uint8_t(sum >> 16);
+  check[3] = uint8_t(sum >> 24);
+
+  fs.seekp(0x2000 * block);
+  fs.seekp(checksumOff, fs.cur);
+  fs.write((char*)check, 4);
+  fs.close();
 }

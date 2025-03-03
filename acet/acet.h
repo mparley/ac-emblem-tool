@@ -35,6 +35,8 @@ std::vector<uint8_t> ExtractImage(const std::vector<uint8_t>& save);
 
 std::vector<uint8_t> ReadSaveFile(std::string filename);
 
-std::vector<uint8_t> ExtractImageAC1(const std::string& filename, uint8_t block = 0);
+std::vector<uint8_t> ExtractImageAC1(const std::string& filename, bool isMOA = false, uint8_t block = 0, uint8_t emblemSlot = 0);
 
-void InjectImageAC1(std::string filename, const std::vector<uint8_t>& image, uint8_t block = 0);
+void InjectImageAC1(std::string filename, const std::vector<uint8_t>& image, bool isMOA = false, uint8_t block = 0, uint8_t emblemSlot = 0);
+
+void ApplyChecksumAC1(std::string filename, const bool isMOA = false, uint8_t block = 0);
