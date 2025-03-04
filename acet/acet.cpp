@@ -400,3 +400,40 @@ void ApplyChecksumAC1(std::string filename, bool isMOA, uint8_t block) {
   fs.write((char*)check, 4);
   fs.close();
 }
+
+std::vector<std::string> ListPS1MCBlocks(std::string filename) {
+  std::ifstream ifs(filename, std::ios::binary);
+  if (!ifs)
+    throw std::runtime_error("ListPS1MCBlocks: Couldn't open file");
+
+  std::vector<std::string> out;
+  char mcID[2] = {};
+
+  ifs.read(mcID, 2);
+  if (mcID[0] != 'M' || mcID[1] != 'C') {
+    ifs.close();
+    throw std::runtime_error("ListPS1MCBlocks: calling on non MC file");
+  }
+
+  for (int i = 0; i < 16; i++) {
+    ifs.seekg((0x80 * i) + 0xA);
+    char savename[21] = {};
+    ifs.read(savename, 21);
+    out.push_back(savename);
+  }
+
+  ifs.close();
+  return out;
+}
+
+bool isPS1Save(std::string filename) {
+  std::ifstream infile(filename, std::ios::binary);
+  if (!infile)
+    throw std::runtime_error("isPS1Save: Cannot open file " + filename);
+
+  char b[2];
+  infile.read(b, 2);
+  infile.close();
+
+  return (b[0] == 'S' || b[0] == 'M') && (b[1] == 'C');
+}

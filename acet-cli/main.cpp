@@ -54,18 +54,6 @@ bool isPNG(string filename) {
   return ret;
 }
 
-bool isPS1Save(string filename) {
-  ifstream infile(filename, ios::binary);
-  if (!infile)
-    ExitMessage("Cannot open file " + filename);
-
-  char b[2];
-  infile.read(b, 2);
-  infile.close();
-
-  return (b[0] == 'S' || b[0] == 'M') && (b[1] == 'C');
-}
-
 void WriteImage(string savename) {
 	vector<uint8_t> save = ReadFile(savename);
 	vector<uint8_t> image = ExtractImage(save);

@@ -40,3 +40,7 @@ std::vector<uint8_t> ExtractImageAC1(const std::string& filename, bool isMOA = f
 void InjectImageAC1(std::string filename, const std::vector<uint8_t>& image, bool isMOA = false, uint8_t block = 0, uint8_t emblemSlot = 0);
 
 void ApplyChecksumAC1(std::string filename, const bool isMOA = false, uint8_t block = 0);
+
+std::vector<std::string> ListPS1MCBlocks(std::string filename);
+
+bool isPS1Save(std::string filename);

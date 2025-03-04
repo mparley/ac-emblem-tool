@@ -4,6 +4,7 @@
 #include <fstream>
 #include <iostream>
 #include <string>
+#include <vector>
 #include <wx/filepicker.h>
 #include <wx/image.h>
 #include <wx/log.h>
@@ -26,6 +27,9 @@ public:
 private:
   ImagePanel *imagePanel;
   wxFilePickerCtrl *savePicker;
+  uint8_t ps1MemBlock;
+  uint8_t ps1EmbSlot;
+  bool ps1IsMOA;
 
   void BackupSave();
   wxImage ExtractHelper(wxString filename);
@@ -66,9 +70,12 @@ bool ACETGui::OnExceptionInMainLoop() {
   return false;
 }
 
-MainFrame::MainFrame() 
-  : wxFrame(nullptr, wxID_ANY, "ACET Gui")
+MainFrame::MainFrame() : wxFrame(nullptr, wxID_ANY, "ACET Gui")
 {
+  ps1MemBlock = 1;
+  ps1EmbSlot = 0;
+  ps1IsMOA = false;
+
   wxMenu *menuFile = new wxMenu;
   DragAcceptFiles(true);
 
@@ -152,29 +159,39 @@ void MainFrame::BackupSave() {
 }
 
 wxImage MainFrame::ExtractHelper(wxString filename) {
-  std::ifstream infile((std::string)filename, std::ios::binary | std::ios::ate);
-  if (!infile) {
-    wxLogError("ExtractHelper: Failed to load save file");
-    return wxNullImage;
+  std::vector<uint8_t> imageRGBA;
+  int width = 128;
+  int height = 128;
+
+  if (isPS1Save((std::string)filename)) {
+    width = 64;
+    height = 64;
+    imageRGBA = ExtractImageAC1((std::string)filename, ps1IsMOA, ps1MemBlock, ps1EmbSlot);
+  } else {
+    std::ifstream infile((std::string)filename, std::ios::binary | std::ios::ate);
+    if (!infile) {
+      wxLogError("ExtractHelper: Failed to load save file");
+      return wxNullImage;
+    }
+
+    size_t save_size = infile.tellg();
+    std::vector<uint8_t> buffer(save_size, 0);
+
+    infile.seekg(0, infile.beg);
+    infile.read((char *)buffer.data(), save_size);
+    infile.close();
+
+    imageRGBA = ExtractImage(buffer);
   }
 
-  size_t save_size = infile.tellg();
-  std::vector<uint8_t> buffer(save_size, 0);
-
-  infile.seekg(0, infile.beg);
-  infile.read((char *)buffer.data(), save_size);
-  infile.close();
-
-  auto imageRGBA = ExtractImage(buffer);
-
-  auto emblem = wxImage(128, 128, false);
+  auto emblem = wxImage(width, height, false);
   emblem.InitAlpha();
   emblem.SetType(wxBITMAP_TYPE_PNG);
 
-  for (int i = 0; i < kNumPixels * 4; i += 4) {
+  for (int i = 0; i < width * height * 4; i += 4) {
     int pixelNumber = i / 4;
-    int y = pixelNumber / 128;
-    int x = pixelNumber % 128;
+    int y = pixelNumber / width;
+    int x = pixelNumber % width;
     emblem.SetRGB(x, y, imageRGBA[i], imageRGBA[i + 1], imageRGBA[i + 2]);
     emblem.SetAlpha(x, y, imageRGBA[i + 3]);
   }
@@ -194,34 +211,55 @@ void MainFrame::InjectHelper(wxString savename, wxString imagename) {
     return;
   }
 
+  BackupSave();
+
   int colors = 256;
+  int width = 128;
+  int height = 128;
+  bool ps1 = false;
+
+  if (isPS1Save((std::string)savename)) {
+    colors = 16;
+    width = 64;
+    height = 64;
+    ps1 = true;
+  }
 
   if (!image.HasMask()) {
     if (!image.HasAlpha()) {
       image.InitAlpha();
-      colors = 255;
+      colors--;
     }
     image.ConvertAlphaToMask();
   }
 
-  if (image.GetWidth() > 128 || image.GetHeight() > 128)
-    image.Rescale(128, 128);
+  if (image.GetWidth() != width || image.GetHeight() != height)
+    image.Rescale(width, height);
 
+  /*image.SaveFile(imagename + ".intermediate.png");*/
+
+  wxImage masked = image;
   if (image.CountColours(colors+1) > colors) {
-    wxImage quantized;
     wxPalette *pal = NULL;
+    wxImage quantized;
     if (wxQuantize::Quantize(image, quantized, &pal, colors, 0, wxQUANTIZE_FILL_DESTINATION_IMAGE))
       image = quantized;
   }
 
-  BackupSave();
+  if (image.HasMask()) 
+    masked = image;
 
-  std::vector<uint8_t> save = ReadSaveFile((std::string)savename);
+  /*wxString message = "HasAlpha:";*/
+  /*message += (image.HasAlpha()) ? "True" : "False";*/
+  /*message += " HasMask:";*/
+  /*message += (image.HasMask()) ? "True" : "False";*/
+  /*message += " Colors:" + std::to_string(image.CountColours());*/
+  /*GetStatusBar()->PushStatusText(message);*/
+
   std::vector<uint8_t> inImage;
-
-  for (int y = 0; y < 128; y++)
-    for (int x = 0; x < 128; x++) {
-      if (image.IsTransparent(x,y)) {
+  for (int y = 0; y < height; y++) {
+    for (int x = 0; x < width; x++) {
+      if (masked.IsTransparent(x,y)) {
         inImage.push_back(0x00);
         inImage.push_back(0x00);
         inImage.push_back(0x00);
@@ -234,12 +272,20 @@ void MainFrame::InjectHelper(wxString savename, wxString imagename) {
         inImage.push_back(0xFF);
       }
     }
+  }
 
-  InjectImage(save, inImage);
+  if (ps1) {
+    InjectImageAC1((std::string)savename, inImage, ps1IsMOA, ps1MemBlock, ps1EmbSlot);
+  } else {
+    std::vector<uint8_t> save = ReadSaveFile((std::string)savename);
+    InjectImage(save, inImage);
 
-  std::ofstream outfile(std::string(savename), std::ios::binary);
-  outfile.write((char *)save.data(), save.size());
-  outfile.close();
+    std::ofstream outfile(std::string(savename), std::ios::binary);
+    outfile.write((char *)save.data(), save.size());
+    outfile.close();
+  }
+
+  GetStatusBar()->PushStatusText("Injected [" + imagename + "]!");
 }
 
 void MainFrame::OnMenuExit(wxCommandEvent &event) {
@@ -318,21 +364,22 @@ void MainFrame::OnSavePicked(wxFileDirPickerEvent &event) {
 }
 
 void MainFrame::OnFilesDropped(wxDropFilesEvent &event) {
-  wxString imagename, savename;
+  std::string imagename, savename;
   auto filenames = event.GetFiles();
 
   if (!savePicker->GetPath().IsEmpty())
     savename = savePicker->GetPath();
 
   for (int i = 0; i < event.GetNumberOfFiles(); i++) {
-    if (wxImage::CanRead(filenames[i])) {
+    std::string filename = (std::string) filenames[i];
+    if (wxImage::CanRead(filename)) {
       imagename = filenames[i];
-    } else if (FindPaletteOffset((std::string)filenames[i])) {
+    } else if (isPS1Save(filename) || FindPaletteOffset(filename)) {
       savename = filenames[i];
     }
   }
 
-  if (savename.IsEmpty()) {
+  if (savename.empty()) {
     wxMessageBox("Couldn't find a possible emblem save in dropped files");
     return;
   }
@@ -341,7 +388,7 @@ void MainFrame::OnFilesDropped(wxDropFilesEvent &event) {
   auto emblem = ExtractHelper(savename);
   imagePanel->SetImage(emblem);
 
-  if (!imagename.IsEmpty()) {
+  if (!imagename.empty()) {
     InjectHelper(savename, imagename);
   }
 
