@@ -1,4 +1,5 @@
 #include "acet.h"
+#include <algorithm>
 #include <stdexcept>
 #include <iostream>
 #include <unordered_map>
@@ -227,9 +228,9 @@ std::vector<uint8_t> ReadSaveFile(std::string filename) {
 
 std::vector<uint8_t> ExtractImageAC1(const std::string& filename, bool isMOA, uint8_t block, uint8_t emblemSlot) {
   if (block > 14)
-    throw std::runtime_error("InjectImageAC1: Block out of bounds (above 14)");
+    throw std::runtime_error("ExtractImageAC1: Block out of bounds (above 14)");
   if (emblemSlot > 6)
-    throw std::runtime_error("InjectImageAC1: Emblem slot out of bounds");
+    throw std::runtime_error("ExtractImageAC1: Emblem slot out of bounds");
 
   std::ifstream infile(filename, std::ios::binary);
   if (!infile)
@@ -291,6 +292,8 @@ void InjectImageAC1(std::string filename, const std::vector<uint8_t>& image, boo
     throw std::runtime_error("InjectImageAC1: Block out of bounds (above 14)");
   if (emblemSlot > 6)
     throw std::runtime_error("InjectImageAC1: Emblem slot out of bounds");
+  if (image.size() != 64 * 64 * 4)
+    throw std::runtime_error("InjectImageAC1: Incorrect image size");
 
   std::fstream fs(filename, std::ios::in | std::ios::out |std::ios::binary);
   if (!fs)
@@ -324,7 +327,7 @@ void InjectImageAC1(std::string filename, const std::vector<uint8_t>& image, boo
 		// Adding color to hash map to count non-duplicate colors and build palette
 		if (palette_map.find(c) == palette_map.end()) {
 			if (palette_map.size() > 16)
-				throw std::runtime_error("InjectImage: Counted more than 255 colors + alpha in the image");
+				throw std::runtime_error("InjectImageAC1: Counted more than 255 colors + alpha in the image");
 
 			palette_map[c] = palette_map.size();
       /*std::cout << std::hex << c << "\n";*/
@@ -417,8 +420,13 @@ std::vector<std::string> ListPS1MCBlocks(std::string filename) {
 
   for (int i = 0; i < 16; i++) {
     ifs.seekg((0x80 * i) + 0xA);
-    char savename[21] = {};
-    ifs.read(savename, 21);
+    char buffer[21] = {};
+    ifs.read(buffer, 21);
+    std::string savename = buffer;
+
+    savename.erase(std::remove_if(savename.begin(), savename.end(), 
+      [](unsigned char c){ return std::isspace(c);}), savename.end());
+
     out.push_back(savename);
   }
 

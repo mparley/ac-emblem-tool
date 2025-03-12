@@ -1,3 +1,4 @@
+#include <filesystem>
 #include <iostream>
 #include <string>
 #include <fstream>
@@ -69,13 +70,20 @@ void WriteImage(string savename) {
 	lodepng::save_file(png, savename + ".png");
 }
 
+void BackupSave(string savename) {
+  filesystem::path src(savename);
+  filesystem::path dst(savename + ".backup");
+  filesystem::copy_file(src, dst, filesystem::copy_options::overwrite_existing);
+}
+
 void ModifySave(string savename, string imagename) {
 	vector<uint8_t> save = ReadFile(savename);
 	vector<uint8_t> image;
 
-	ofstream outfile(savename + ".backup", ios::binary);
-	outfile.write((char*)save.data(), save.size());
-	outfile.close();
+  BackupSave(savename);
+	/*ofstream outfile(savename + ".backup", ios::binary);*/
+	/*outfile.write((char*)save.data(), save.size());*/
+	/*outfile.close();*/
 
 	unsigned w = kImageWidth, h = kImageHeight;
 	unsigned error = lodepng::decode(image, w, h, imagename);
@@ -86,12 +94,14 @@ void ModifySave(string savename, string imagename) {
 
 	InjectImage(save, image);
 
+  ofstream outfile;
 	outfile.open(savename, ios::binary);
 	outfile.write((char*)save.data(), save.size());
 	outfile.close();
 }
 
 void ModifySavePS1(string savename, string imagename, bool isMOA = false, int block = 0, int slot = 0) {
+  BackupSave(savename);
 	vector<uint8_t> image;
 	unsigned w = 64, h = 64;
 	unsigned error = lodepng::decode(image, w, h, imagename);
@@ -99,7 +109,7 @@ void ModifySavePS1(string savename, string imagename, bool isMOA = false, int bl
 		cout << "Decoder error " << error << ": " << lodepng_error_text(error) << endl;
 		ExitMessage("");
 	}
-  InjectImageAC1(savename, image, true, 1, 0);
+  InjectImageAC1(savename, image, isMOA, 1, 0);
 }
 
 void parseArgs(int argc, char** argv) {
@@ -126,14 +136,14 @@ void parseArgs(int argc, char** argv) {
 
   if (argc == 1) help = true;
 
-  for (auto flag : argmap) {
-    cout << flag.first << ": ";
-    for (auto arg : flag.second) {
-      cout << arg << " ";
-    }
-    cout << "\n";
-  }
-  cout << "\n";
+  /*for (auto flag : argmap) {*/
+  /*  cout << flag.first << ": ";*/
+  /*  for (auto arg : flag.second) {*/
+  /*    cout << arg << " ";*/
+  /*  }*/
+  /*  cout << "\n";*/
+  /*}*/
+  /*cout << "\n";*/
 
   for (string s : argmap[""]) {
     if (isPNG(s)) {
@@ -170,26 +180,6 @@ void parseArgs(int argc, char** argv) {
     }
   }
 
-  if (argmap.find("-moa") != argmap.end()) {
-    moa = true;
-  }
-
-  if (ps1 && ps1pos.size() != 2) {
-    ExitMessage((string)"parseArgs: A ps1 save requires 2 ints passed into the '-ps1' flag:\n"
-      + "1. The memory card block number 0-14 (pass 0 if it is a single save instead of a card)\n"
-      + "NOTE: 0-14 since even though PS1 memory cards have 15 blocks, gen 1 emblem saves use 2 blocks\n"
-      + "2. The emblem slot in the save 0-6. Emblem saves have 7 slots for emblems in the PS1 games\n");
-  }
-
-  if (argmap.find("-lr") != argmap.end()) {
-    if (moa) {
-      ExitMessage("parseArgs: Conflicting flags '-lr' and -moa");
-    } else if (ps1) {
-      ExitMessage("parseArgs: -lr flag used on a PS1 save");
-    }
-    lr = true;
-  }
-
   if (help) {
     cout << "Temp help message\n";
     /*cout << "AC Emblem Tool\n";*/
@@ -203,6 +193,27 @@ void parseArgs(int argc, char** argv) {
   if (save.empty()) {
     if (help) ExitMessage("");
     ExitMessage("No save file");
+  }
+
+  if (ps1) {
+    if (ps1pos.size() != 2) {
+      auto choices = ListPS1MCBlocks(save);
+      string message = "A PS1 MC save requires 2 ints passed into the '-ps1' flag:\n";
+      message += "1. The memory card block number 1-14. 0 is reserved and emblem saves use 2 blocks.\n";
+      message += "2. The emblem slot in the save 0-6. Emblem saves have 7 slots for emblems in the PS1 games\n\n";
+      message += "Blocks in PS1 MC [" + save + "]\n";
+      message += "----------------------------------------\n";
+      for (int i = 1; i < choices.size(); i++) {
+        message += to_string(i) + ":\t";
+        message += (choices[i].empty()) ? "EMPTY" : choices[i];
+        message += "\n";
+      }
+      ExitMessage(message);
+    }
+
+    auto choices = ListPS1MCBlocks(save);
+    if (choices[ps1pos[0]] == "BASLUS-01030Z")
+      moa = true;
   }
 
   if (image.empty() && extract.empty() && argmap.find("-nde") == argmap.end()) {
@@ -228,12 +239,12 @@ void parseArgs(int argc, char** argv) {
   if (!image.empty()) {
     cout << "INJECTING [" << image << "] into [" << save << "]";
     if (ps1) {
-      cout << " at PS1 MEM BLOCK " << ps1pos[0] << " and EMBLEM SLOT " << ps1pos[1];
+      cout << " at PS1 MEM BLOCK " << ps1pos[0] << " and EMBLEM SLOT " << ps1pos[1] << "\n";
       ModifySavePS1(save, image, moa, ps1pos[0], ps1pos[1]);
     } else {
+      cout << "\n";
       ModifySave(save, image);
     }
-    cout << "\n";
   }
 }
 

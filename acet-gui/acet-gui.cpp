@@ -1,4 +1,5 @@
 #include "ImagePanel.h"
+#include "PS1Dialog.h"
 #include "acet.h"
 #include <cstdint>
 #include <fstream>
@@ -6,11 +7,14 @@
 #include <string>
 #include <vector>
 #include <wx/filepicker.h>
+#include <wx/gdicmn.h>
 #include <wx/image.h>
+#include <wx/layout.h>
 #include <wx/log.h>
 #include <wx/msgdlg.h>
 #include <wx/quantize.h>
 #include <wx/wx.h>
+#include <wx/spinctrl.h>
 
 class ACETGui : public wxApp {
 public:
@@ -34,6 +38,7 @@ private:
   void BackupSave();
   wxImage ExtractHelper(wxString filename);
   void InjectHelper(wxString savename, wxString imagename);
+  void OpenSaveHelper(wxString savename);
 
   void OnMenuOpenSave(wxCommandEvent &event);
   void OnMenuExit(wxCommandEvent &event);
@@ -111,15 +116,9 @@ MainFrame::MainFrame() : wxFrame(nullptr, wxID_ANY, "ACET Gui")
 
   savePicker = new wxFilePickerCtrl(mainPanel, wxID_ANY);
   imagePanel = new ImagePanel(mainPanel, wxID_ANY, wxDefaultPosition, wxSize(128, 128));
-  // auto injectButton = new wxButton(mainPanel, wxID_ANY, "Inject Image");
-  // auto extractButton = new wxButton(mainPanel, wxID_ANY, "Extract Image");
 
   sizer->Add(savePicker, 0, wxEXPAND | wxALL, 10);
   sizer->Add(imagePanel, 1, wxEXPAND);
-  // bottomSizer->AddStretchSpacer(1);
-  // bottomSizer->Add(extractButton, 0, wxEXPAND | wxRIGHT, 10);
-  // bottomSizer->Add(injectButton, 0, wxEXPAND | wxRIGHT, 10);
-  // sizer->Add(bottomSizer, 0, wxEXPAND | wxTOP | wxBOTTOM, 10);
 
   Bind(wxEVT_FILEPICKER_CHANGED, &MainFrame::OnSavePicked, this, savePicker->GetId());
   Bind(wxEVT_DROP_FILES, &MainFrame::OnFilesDropped, this, wxID_ANY);
@@ -156,6 +155,22 @@ void MainFrame::BackupSave() {
     wxLogError("BackupSave: Couldn't copy save file");
     return;
   }
+}
+
+void MainFrame::OpenSaveHelper(wxString savename) {
+  if (isPS1Save((std::string)savename)) {
+    PS1Dialog ps1Dlg(savename);
+    if (ps1Dlg.ShowModal() == wxID_CANCEL)
+      return;
+
+    ps1EmbSlot = ps1Dlg.Slot();
+    ps1MemBlock = ps1Dlg.Block();
+    ps1IsMOA = ps1Dlg.IsMOA();
+  }
+
+  savePicker->SetPath(savename);
+  auto emblem = ExtractHelper(savename);
+  imagePanel->SetImage(emblem);
 }
 
 wxImage MainFrame::ExtractHelper(wxString filename) {
@@ -284,8 +299,7 @@ void MainFrame::InjectHelper(wxString savename, wxString imagename) {
     outfile.write((char *)save.data(), save.size());
     outfile.close();
   }
-
-  GetStatusBar()->PushStatusText("Injected [" + imagename + "]!");
+  /*GetStatusBar()->PushStatusText("Injected [" + imagename + "]!");*/
 }
 
 void MainFrame::OnMenuExit(wxCommandEvent &event) {
@@ -324,10 +338,7 @@ void MainFrame::OnMenuOpenSave(wxCommandEvent &event) {
     return;
 
   auto savefile = dialog.GetPath();
-  auto emblem = ExtractHelper(savefile);
-
-  savePicker->SetPath(savefile);
-  imagePanel->SetImage(emblem);
+  OpenSaveHelper(savefile);
 }
 
 void MainFrame::OnMenuExtract(wxCommandEvent &event) {
@@ -359,13 +370,13 @@ void MainFrame::OnMenuInject(wxCommandEvent &event) {
 
 void MainFrame::OnSavePicked(wxFileDirPickerEvent &event) {
   auto savefile = event.GetPath();
-  auto emblem = ExtractHelper(savefile);
-  imagePanel->SetImage(emblem);
+  OpenSaveHelper(savefile);
 }
 
 void MainFrame::OnFilesDropped(wxDropFilesEvent &event) {
   std::string imagename, savename;
   auto filenames = event.GetFiles();
+  bool newSave = false;
 
   if (!savePicker->GetPath().IsEmpty())
     savename = savePicker->GetPath();
@@ -376,6 +387,7 @@ void MainFrame::OnFilesDropped(wxDropFilesEvent &event) {
       imagename = filenames[i];
     } else if (isPS1Save(filename) || FindPaletteOffset(filename)) {
       savename = filenames[i];
+      newSave = true;
     }
   }
 
@@ -384,14 +396,13 @@ void MainFrame::OnFilesDropped(wxDropFilesEvent &event) {
     return;
   }
 
-  savePicker->SetPath(savename);
-  auto emblem = ExtractHelper(savename);
-  imagePanel->SetImage(emblem);
+  if (newSave) {
+    OpenSaveHelper(savename);
+  }
 
   if (!imagename.empty()) {
     InjectHelper(savename, imagename);
+    auto emblem = ExtractHelper(savename);
+    imagePanel->SetImage(emblem);
   }
-
-  emblem = ExtractHelper(savename);
-  imagePanel->SetImage(emblem);
 }
